@@ -6,7 +6,7 @@ This service checks the availability of a specific Ulta product every 15 minutes
 
 1. Create a Pushover account and application.
 2. Save your `PRODUCT_URL`, `PUSHOVER_USER_KEY`, and `PUSHOVER_API_TOKEN`.
-3. Deploy using Render as a cron job scheduled every 15 minutes.
+3. Deploy using Render as a cron job scheduled every 10 minutes.
 
 ## Local Testing
 

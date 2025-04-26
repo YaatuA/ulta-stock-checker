@@ -3,6 +3,7 @@ import asyncio
 import requests
 from bs4 import BeautifulSoup
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 import uvicorn
@@ -10,11 +11,11 @@ import uvicorn
 # Load environment variables
 load_dotenv()
 
-# Config
+# Configuration
 URL = os.getenv("PRODUCT_URL")
 PUSHOVER_USER_KEY = os.getenv("PUSHOVER_USER_KEY")
 PUSHOVER_API_TOKEN = os.getenv("PUSHOVER_API_TOKEN")
-CHECK_INTERVAL_SECONDS = 15 * 60  # 15 minutes
+CHECK_INTERVAL_SECONDS = 10 * 60  # 10 minutes
 
 def check_stock() -> bool:
     headers = {
@@ -57,12 +58,14 @@ def check_stock() -> bool:
     return False
 
 def send_pushover_notification():
-    message = f"🚨 Ulta product is now in stock!\n\n{URL}"
+    title = f"🚨 Ulta Product is in stock!"
+    message = f"Go grab it before it's gone!\n\n{URL}"
+    
     data = {
         "token": PUSHOVER_API_TOKEN,
         "user": PUSHOVER_USER_KEY,
+        "title": title,
         "message": message,
-        "title": "Ulta Restock Alert",
         "priority": 1,
     }
     try:
@@ -77,7 +80,8 @@ def send_pushover_notification():
 async def background_checker():
     while True:
         print("Checking stock...")
-        if check_stock():
+        in_stock = check_stock()
+        if in_stock:
             send_pushover_notification()
         else:
             print("Not in stock yet.")
@@ -93,9 +97,9 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app with lifespan
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
-    return {"message": "Ulta stock checker is running."}
+    return JSONResponse(content={"message": "Ulta stock checker is running."})
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
