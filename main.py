@@ -7,6 +7,11 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 import uvicorn
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
+import time
 
 # Load environment variables
 load_dotenv()
@@ -20,42 +25,45 @@ PUSHOVER_API_TOKEN = os.getenv("PUSHOVER_API_TOKEN")
 CHECK_INTERVAL_SECONDS = 10 * 60  # 10 minutes
 
 def check_stock_ulta() -> bool:
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0.0.0 Safari/537.36"
-        )
-    }
-    try:
-        print("Fetching Ulta product page...")
-        response = requests.get(ULTA_URL, headers=headers, timeout=10)
-        print(f"Response status code: {response.status_code}")
-        response.raise_for_status()
-    except requests.RequestException as e:
-        print(f"Error fetching the Ulta product page: {e}")
-        return False
+    options = Options()
+    options.headless = True
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
 
     try:
-        soup = BeautifulSoup(response.text, "html.parser")
-        button = soup.find("button", class_="AddToBagButton__AddToBag")
+        print("Launching headless browser...")
+        driver = webdriver.Chrome(options=options)
+        driver.set_page_load_timeout(15)
 
-        if button:
-            print("Found AddToBag button.")
-            classes = button.get("class", [])
+        print(f"Loading page: {ULTA_URL}")
+        driver.get(ULTA_URL)
+
+        print("Waiting 7 seconds for page to load dynamic content...")
+        time.sleep(7)
+
+        try:
+            button = driver.find_element(By.CLASS_NAME, "AddToBagButton__AddToBag")
+            classes = button.get_attribute("class").split()
+            is_disabled = "pal-c-Button--disabled" in classes or button.get_attribute("disabled") is not None
+
             print(f"Button classes: {classes}")
-            disabled_attr = button.has_attr("disabled")
-            print(f"Disabled attribute present: {disabled_attr}")
+            print(f"Disabled attribute present: {button.get_attribute('disabled') is not None}")
 
-            if "pal-c-Button--disabled" not in classes and not disabled_attr:
+            if not is_disabled:
                 print("Button is enabled! Product is in stock at Ulta.")
                 return True
             else:
                 print("Button is disabled. Product still out of stock.")
-        else:
+        except NoSuchElementException:
             print("AddToBag button not found. Structure might have changed.")
+
     except Exception as e:
-        print(f"Error parsing the page: {e}")
+        print(f"Error occurred: {e}")
+    finally:
+        driver.quit()
 
     return False
 
